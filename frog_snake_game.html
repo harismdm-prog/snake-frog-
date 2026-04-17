@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { margin: 0; background: #1a2a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; }
+  canvas { border-radius: 10px; border: 2px solid #3a5a3a; display: block; }
+  #ui { color: #ccc; margin-top: 10px; font-size: 15px; text-align: center; }
+  #msg { color: #ffdd55; font-size: 20px; font-weight: bold; min-height: 28px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><span id="score-el">Score: 0</span> &nbsp;|&nbsp; <span id="lvl-el">Level: 1</span> &nbsp;|&nbsp; Arrow keys to move</div>
+<div id="msg"></div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const SZ = 32, COLS = 15, ROWS = 15;
+cv.width = COLS * SZ; cv.height = ROWS * SZ;
+const W = cv.width, H = cv.height;
+
+let frog, snake, flies, score, alive, level, snakeSpeed, snakeTick, frogMoved;
+
+function rand(max){ return Math.floor(Math.random() * max); }
+function rndPos(avoid){
+  let p;
+  do { p = {x: rand(COLS), y: rand(ROWS)}; }
+  while (avoid.some(a => a.x === p.x && a.y === p.y));
+  return p;
+}
+
+function init(){
+  frog = {x: 3, y: 7};
+  snake = [{x:11,y:7},{x:10,y:7},{x:9,y:7}];
+  score = 0; alive = true; level = 1;
+  snakeSpeed = 400; snakeTick = 0; frogMoved = false;
+  flies = [];
+  for(let i = 0; i < 3; i++) flies.push(rndPos([frog, ...snake]));
+  document.getElementById('score-el').textContent = 'Score: 0';
+  document.getElementById('lvl-el').textContent = 'Level: 1';
+  document.getElementById('msg').textContent = '';
+}
+
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e => keys[e.key] = false);
+
+function moveFrog(){
+  let nx = frog.x, ny = frog.y;
+  if(keys['ArrowUp'])    ny--;
+  if(keys['ArrowDown'])  ny++;
+  if(keys['ArrowLeft'])  nx--;
+  if(keys['ArrowRight']) nx++;
+  nx = (nx + COLS) % COLS;
+  ny = (ny + ROWS) % ROWS;
+  if(nx !== frog.x || ny !== frog.y){
+    frog.x = nx; frog.y = ny;
+    frogMoved = true;
+    let fi = flies.findIndex(f => f.x === frog.x && f.y === frog.y);
+    if(fi >= 0){
+      flies.splice(fi, 1);
+      score++;
+      level = Math.floor(score / 3) + 1;
+      snakeSpeed = Math.max(120, 400 - (level - 1) * 40);
+      flies.push(rndPos([frog, ...snake]));
+      document.getElementById('score-el').textContent = 'Score: ' + score;
+      document.getElementById('lvl-el').textContent = 'Level: ' + level;
+    }
+  }
+}
+
+function moveSnake(){
+  const head = snake[0];
+  const dx = frog.x - head.x, dy = frog.y - head.y;
+  let bx = 0, by = 0;
+  if(Math.abs(dx) >= Math.abs(dy)) bx = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+  else by = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+  const nx = (head.x + bx + COLS) % COLS;
+  const ny = (head.y + by + ROWS) % ROWS;
+  snake.unshift({x: nx, y: ny});
+  snake.pop();
+  if(nx === frog.x && ny === frog.y) alive = false;
+}
+
+function drawGrid(){
+  ctx.fillStyle = '#1a3a1a';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.5;
+  for(let i = 0; i <= COLS; i++){ ctx.beginPath(); ctx.moveTo(i*SZ,0); ctx.lineTo(i*SZ,H); ctx.stroke(); }
+  for(let j = 0; j <= ROWS; j++){ ctx.beginPath(); ctx.moveTo(0,j*SZ); ctx.lineTo(W,j*SZ); ctx.stroke(); }
+}
+
+function drawFrog(x, y){
+  const px = x*SZ, py = y*SZ;
+  ctx.fillStyle = '#44dd44';
+  ctx.beginPath(); ctx.roundRect(px+5, py+7, SZ-10, SZ-11, 5); ctx.fill();
+  ctx.fillStyle = '#33aa33';
+  ctx.beginPath(); ctx.ellipse(px+9, py+6, 5, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px+SZ-9, py+6, 5, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(px+9, py+6, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px+SZ-9, py+6, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(px+9, py+6, 1.5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px+SZ-9, py+6, 1.5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#33aa33';
+  ctx.beginPath(); ctx.ellipse(px+6, py+SZ-4, 5, 3, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(px+SZ-6, py+SZ-4, 5, 3, 0.3, 0, Math.PI*2); ctx.fill();
+}
+
+function drawSnakeSeg(x, y, isHead){
+  const px = x*SZ, py = y*SZ;
+  ctx.fillStyle = isHead ? '#e05c0a' : '#c04400';
+  ctx.beginPath(); ctx.roundRect(px+3, py+3, SZ-6, SZ-6, isHead ? 6 : 4); ctx.fill();
+  if(isHead){
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(px+9, py+10, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px+SZ-9, py+10, 3, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.ellipse(px+9, py+10, 1.5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(px+SZ-9, py+10, 1.5, 1.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ff5555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px+SZ/2-4, py+SZ-5); ctx.lineTo(px+SZ/2, py+SZ-2); ctx.lineTo(px+SZ/2+4, py+SZ-5); ctx.stroke();
+  }
+}
+
+function drawFly(x, y){
+  const px = x*SZ + SZ/2, py = y*SZ + SZ/2;
+  ctx.fillStyle = '#ffee44';
+  ctx.beginPath(); ctx.ellipse(px, py, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,230,100,0.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(px-5, py-3, 6, 3, -0.4, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(px+5, py-3, 6, 3, 0.4, 0, Math.PI*2); ctx.stroke();
+}
+
+let last = 0, frogTick = 0;
+function loop(ts){
+  const dt = Math.min(ts - last, 100); last = ts;
+  if(alive){
+    frogTick += dt;
+    if(frogTick > 90){ moveFrog(); frogTick = 0; }
+    snakeTick += dt;
+    if(snakeTick > snakeSpeed){ moveSnake(); snakeTick = 0; }
+    drawGrid();
+    flies.forEach(f => drawFly(f.x, f.y));
+    for(let i = snake.length - 1; i >= 1; i--) drawSnakeSeg(snake[i].x, snake[i].y, false);
+    drawSnakeSeg(snake[0].x, snake[0].y, true);
+    drawFrog(frog.x, frog.y);
+    requestAnimationFrame(loop);
+  } else {
+    drawGrid();
+    flies.forEach(f => drawFly(f.x, f.y));
+    for(let i = snake.length - 1; i >= 1; i--) drawSnakeSeg(snake[i].x, snake[i].y, false);
+    drawSnakeSeg(snake[0].x, snake[0].y, true);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#ffdd55';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', W/2, H/2 - 20);
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px sans-serif';
+    ctx.fillText('Score: ' + score + '  |  Level: ' + level, W/2, H/2 + 15);
+    ctx.fillStyle = '#aaa';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('Click or press Enter to restart', W/2, H/2 + 45);
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if(!alive && e.key === 'Enter'){ init(); last = performance.now(); requestAnimationFrame(loop); }
+});
+cv.addEventListener('click', () => {
+  if(!alive){ init(); last = performance.now(); requestAnimationFrame(loop); }
+});
+
+init();
+last = performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
